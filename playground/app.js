@@ -1,369 +1,161 @@
-import React, { Component } from "react";
+import React, { Component } from 'react';
 import { render } from "react-dom";
-import Codemirror from "react-codemirror";
-import "codemirror/mode/javascript/javascript";
 
-import { shouldRender } from "../src/utils";
-import { samples } from "./samples";
+// for the autocomplete
+import Axios from 'axios';
+import Autocomplete from 'react-autocomplete';
+
 import Form from "../src";
+import ObjectField from "../src/components/fields/ObjectField"
 
-// Import a few CodeMirror themes; these are used to match alternative
-// bootstrap ones.
-import "codemirror/lib/codemirror.css";
-import "codemirror/theme/dracula.css";
-import "codemirror/theme/blackboard.css";
-import "codemirror/theme/mbo.css";
-import "codemirror/theme/ttcn.css";
-import "codemirror/theme/solarized.css";
-import "codemirror/theme/monokai.css";
-import "codemirror/theme/eclipse.css";
+const log = (type) => console.log.bind(console, type);
+const _ = require('lodash');
 
-// Patching CodeMirror#componentWillReceiveProps so it's executed synchronously
-// Ref https://github.com/mozilla-services/react-jsonschema-form/issues/174
-Codemirror.prototype.componentWillReceiveProps = function (nextProps) {
-  if (this.codeMirror &&
-      nextProps.value !== undefined &&
-      this.codeMirror.getValue() != nextProps.value) {
-    this.codeMirror.setValue(nextProps.value);
-  }
-  if (typeof nextProps.options === "object") {
-    for (var optionName in nextProps.options) {
-      if (nextProps.options.hasOwnProperty(optionName)) {
-        this.codeMirror.setOption(optionName, nextProps.options[optionName]);
+const schema = {
+    type: "object",
+    properties: {
+      playlist: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            title: { "type" : "string" },
+            stream_url: { "type" : "string"},
+            artwork_url: { "type" : "string" }
+          }
+        }
       }
     }
   }
-};
 
-const log = (type) => console.log.bind(console, type);
-const fromJson = (json) => JSON.parse(json);
-const toJson = (val) => JSON.stringify(val, null, 2);
-const liveValidateSchema = {type: "boolean", title: "Live validation"};
-const cmOptions = {
-  theme: "default",
-  height: "auto",
-  viewportMargin: Infinity,
-  mode: {
-    name: "javascript",
-    json: true,
-    statementIndent: 2,
-  },
-  lineNumbers: true,
-  lineWrapping: true,
-  indentWithTabs: false,
-  tabSize: 2,
-};
-const themes = {
-  default: {
-    stylesheet: "//maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css"
-  },
-  cerulean: {
-    stylesheet: "//cdnjs.cloudflare.com/ajax/libs/bootswatch/3.3.6/cerulean/bootstrap.min.css"
-  },
-  cosmo: {
-    stylesheet: "//cdnjs.cloudflare.com/ajax/libs/bootswatch/3.3.6/cosmo/bootstrap.min.css"
-  },
-  cyborg: {
-    stylesheet: "//cdnjs.cloudflare.com/ajax/libs/bootswatch/3.3.6/cyborg/bootstrap.min.css",
-    editor: "blackboard",
-  },
-  darkly: {
-    stylesheet: "//cdnjs.cloudflare.com/ajax/libs/bootswatch/3.3.6/darkly/bootstrap.min.css",
-    editor: "mbo",
-  },
-  flatly: {
-    stylesheet: "//cdnjs.cloudflare.com/ajax/libs/bootswatch/3.3.6/flatly/bootstrap.min.css",
-    editor: "ttcn",
-  },
-  journal: {
-    stylesheet: "//cdnjs.cloudflare.com/ajax/libs/bootswatch/3.3.6/journal/bootstrap.min.css"
-  },
-  lumen: {
-    stylesheet: "//cdnjs.cloudflare.com/ajax/libs/bootswatch/3.3.6/lumen/bootstrap.min.css"
-  },
-  paper: {
-    stylesheet: "//cdnjs.cloudflare.com/ajax/libs/bootswatch/3.3.6/paper/bootstrap.min.css"
-  },
-  readable: {
-    stylesheet: "//cdnjs.cloudflare.com/ajax/libs/bootswatch/3.3.6/readable/bootstrap.min.css"
-  },
-  sandstone: {
-    stylesheet: "//cdnjs.cloudflare.com/ajax/libs/bootswatch/3.3.6/sandstone/bootstrap.min.css",
-    editor: "solarized",
-  },
-  simplex: {
-    stylesheet: "//cdnjs.cloudflare.com/ajax/libs/bootswatch/3.3.6/simplex/bootstrap.min.css",
-    editor: "ttcn",
-  },
-  slate: {
-    stylesheet: "//cdnjs.cloudflare.com/ajax/libs/bootswatch/3.3.6/slate/bootstrap.min.css",
-    editor: "monokai",
-  },
-  spacelab: {
-    stylesheet: "//cdnjs.cloudflare.com/ajax/libs/bootswatch/3.3.6/spacelab/bootstrap.min.css"
-  },
-  "solarized-dark": {
-    stylesheet: "//cdn.rawgit.com/aalpern/bootstrap-solarized/master/bootstrap-solarized-dark.css",
-    editor: "dracula",
-  },
-  "solarized-light": {
-    stylesheet: "//cdn.rawgit.com/aalpern/bootstrap-solarized/master/bootstrap-solarized-light.css",
-    editor: "solarized",
-  },
-  superhero: {
-    stylesheet: "//cdnjs.cloudflare.com/ajax/libs/bootswatch/3.3.6/superhero/bootstrap.min.css",
-    editor: "dracula",
-  },
-  united: {
-    stylesheet: "//cdnjs.cloudflare.com/ajax/libs/bootswatch/3.3.6/united/bootstrap.min.css"
-  },
-  yeti: {
-    stylesheet: "//cdnjs.cloudflare.com/ajax/libs/bootswatch/3.3.6/yeti/bootstrap.min.css",
-    editor: "eclipse",
-  },
-};
 
-class GeoPosition extends Component {
-  constructor(props) {
-    super(props);
-    this.state = {...props.formData};
-  }
-
-  onChange(name) {
-    return (event) => {
-      this.setState({[name]: parseFloat(event.target.value)});
-      setImmediate(() => this.props.onChange(this.state));
-    };
-  }
-
+class Search extends React.Component{
+  handleRenderItem(item, isHighlighted){
+      const listStyles = {
+            item: {
+                    padding: '2px 6px',
+                    cursor: 'default'
+                  },
+      
+            highlightedItem: {
+                    color: 'white',
+                    background: '#F38B72',
+                    padding: '2px 6px',
+                    cursor: 'default'
+                  }
+          };
+      return (
+            <div
+              style={isHighlighted ? listStyles.highlightedItem : listStyles.item}
+              key={item.id}
+              id={item.id}
+            >{item.title}</div>
+          )
+    }
   render() {
-    const {lat, lon} = this.state;
-    return (
-      <div className="geo">
-        <h3>Hey, I'm a custom component</h3>
-        <p>I'm registered as <code>geo</code> and referenced in
-        <code>uiSchema</code> as the <code>ui:field</code> to use for this
-        schema.</p>
-        <div className="row">
-          <div className="col-sm-6">
-            <label>Latitude</label>
-            <input className="form-control" type="number" value={lat} step="0.00001"
-              onChange={this.onChange("lat")} />
-          </div>
-          <div className="col-sm-6">
-            <label>Longitude</label>
-            <input className="form-control" type="number" value={lon} step="0.00001"
-              onChange={this.onChange("lon")} />
-          </div>
-        </div>
-      </div>
-    );
-  }
-}
-
-class Editor extends Component {
-  constructor(props) {
-    super(props);
-    this.state = {valid: true, code: props.code};
-  }
-
-  componentWillReceiveProps(props) {
-    this.setState({valid: true, code: props.code});
-  }
-
-  shouldComponentUpdate(nextProps, nextState) {
-    return shouldRender(this, nextProps, nextState);
-  }
-
-  onCodeChange = (code) => {
-    this.setState({valid: true, code});
-    setImmediate(() => {
-      try {
-        this.props.onChange(fromJson(this.state.code));
-      } catch(err) {
-        console.error(err);
-        this.setState({valid: false, code});
-      }
-    });
-  };
-
-  render() {
-    const {title, theme} = this.props;
-    const icon = this.state.valid ? "ok" : "remove";
-    const cls = this.state.valid ? "valid" : "invalid";
-    return (
-      <div className="panel panel-default">
-        <div className="panel-heading">
-          <span className={`${cls} glyphicon glyphicon-${icon}`} />
-          {" " + title}
-        </div>
-        <Codemirror
-          value={this.state.code}
-          onChange={this.onCodeChange}
-          options={Object.assign({}, cmOptions, {theme})} />
-      </div>
-    );
-  }
-}
-
-class Selector extends Component {
-  constructor(props) {
-    super(props);
-    this.state = {current: "Simple"};
-  }
-
-  shouldComponentUpdate(nextProps, nextState) {
-    return shouldRender(this, nextProps, nextState);
-  }
-
-  onLabelClick = (label) => {
-    return (event) => {
-      event.preventDefault();
-      this.setState({current: label});
-      setImmediate(() => this.props.onSelected(samples[label]));
-    };
-  };
-
-  render() {
-    return (
-      <ul className="nav nav-pills">{
-        Object.keys(samples).map((label, i) => {
-          return (
-            <li key={i} role="presentation"
-              className={this.state.current === label ? "active" : ""}>
-              <a href="#"
-                onClick={this.onLabelClick(label)}>
-                {label}
-              </a>
-            </li>
+      return (
+            <div className="search">
+              <label  class="control-label" is="null">Search for a track</label>
+              <Autocomplete
+               ref="autocomplete"
+               inputProps={{title: "Title"}}
+               value={this.props.autoCompleteValue}
+               items={this.props.tracks}
+               getItemValue={(item) => item.title}
+               onSelect={this.props.handleSelect}
+               onChange={this.props.handleChange}
+               renderItem={this.handleRenderItem.bind(this)}
+             />
+            </div>
           );
-        })
-      }</ul>
-    );
-  }
+    }
 }
 
-function ThemeSelector({theme, select}) {
-  const themeSchema = {
-    type: "string",
-    enum: Object.keys(themes)
-  };
-  return (
-    <Form schema={themeSchema}
-          formData={theme}
-          onChange={({formData}) => select(formData, themes[formData])}>
-      <div/>
-    </Form>
-  );
+
+
+class TrackField extends React.Component {
+  
+  constructor(props) {
+    super(props);
+    this.state = { ...props.formData,
+        suggestion: "",
+        track: {stream_url: '', title: '', artwork_url: ''},
+        tracks: [],
+        autoCompleteValue: ''
+    };
+    this.client_id = '2f98992c40b8edf17423d93bda2e04ab'; 
+  }
+
+ // ok, not too sure about this. we've selected, and now we add the result
+// to our state and pass it to the onChange
+ handleSelect(value, item){
+    this.setState({ autoCompleteValue: value, track: item, ...item });    
+    // we can just filter out the keys we need for our schema. also ugly
+    setImmediate(() => this.props.onChange( _.pick( this.state, Object.keys(this.props.schema.properties)))); 
+    console.log(this); 
+ }
+
+	// we query soundcloud
+  handleChange(event, value){
+    console.log(this.props); 
+    // Update input box
+    this.setState({autoCompleteValue: event.target.value});
+    let _this = this;
+    //Search for song with entered value
+    Axios.get(`https://api.soundcloud.com/tracks?client_id=${this.client_id}&q=${value}`)
+      .then(function (response) {
+        // Update track state
+        _this.setState({tracks: response.data});
+      })
+      .catch(function (err) {
+        console.log(err);
+      });
+  }
+
+  render() {
+    
+    return ( 
+           <div>
+           <Search
+                 clientId={this.state.client_id}
+                 autoCompleteValue={this.state.autoCompleteValue}
+                 tracks={this.state.tracks}
+                 handleSelect={this.handleSelect.bind(this)}
+                 handleChange={this.handleChange.bind(this)}/>
+            <ObjectField {...this.props} />
+            
+         </div>
+         
+          );
+
+}
+
+} 
+
+const uiSchema = {
+    playlist: {
+      items: { 
+          "ui:field": "track" 
+      } // note the "items" for an array
+    }
+}
+
+const fields = { track: TrackField }
+
+
+function validate(formData, errors) {
+  console.log(formData);
+  console.log(errors);
+  return errors;
 }
 
 class App extends Component {
-  constructor(props) {
-    super(props);
-    // initialize state with Simple data sample
-    const {schema, uiSchema, formData, validate} = samples.Simple;
-    this.state = {
-      form: false,
-      schema,
-      uiSchema,
-      formData,
-      validate,
-      editor: "default",
-      theme: "default",
-      liveValidate: true,
-    };
-  }
 
-  componentDidMount() {
-    this.load(samples.Simple);
-  }
-
-  shouldComponentUpdate(nextProps, nextState) {
-    return shouldRender(this, nextProps, nextState);
-  }
-
-  load = (data) => {
-    // force resetting form component instance
-    this.setState({form: false},
-      _ => this.setState({...data, form: true}));
-  };
-
-  onSchemaEdited   = (schema) => this.setState({schema});
-
-  onUISchemaEdited = (uiSchema) => this.setState({uiSchema});
-
-  onFormDataEdited = (formData) => this.setState({formData});
-
-  onThemeSelected  = (theme, {stylesheet, editor}) => {
-    this.setState({theme, editor: editor ? editor : "default"});
-    setImmediate(() => {
-      // Side effect!
-      document.getElementById("theme").setAttribute("href", stylesheet);
-    });
-  };
-
-  setLiveValidate = ({formData}) => this.setState({liveValidate: formData});
-
-  onFormDataChange = ({formData}) => this.setState({formData});
-
-  render() {
-    const {
-      schema,
-      uiSchema,
-      formData,
-      liveValidate,
-      validate,
-      theme,
-      editor
-    } = this.state;
-
-    return (
-      <div className="container-fluid">
-        <div className="page-header">
-          <h1>react-jsonschema-form</h1>
-          <div className="row">
-            <div className="col-sm-8">
-              <Selector onSelected={this.load} />
-            </div>
-            <div className="col-sm-2">
-              <Form schema={liveValidateSchema}
-                    formData={liveValidate}
-                    onChange={this.setLiveValidate}><div/></Form>
-            </div>
-            <div className="col-sm-2">
-              <ThemeSelector theme={theme} select={this.onThemeSelected} />
-            </div>
-          </div>
-        </div>
-        <div className="col-sm-7">
-          <Editor title="JSONSchema" theme={editor} code={toJson(schema)}
-            onChange={this.onSchemaEdited} />
-          <div className="row">
-            <div className="col-sm-6">
-              <Editor title="UISchema" theme={editor} code={toJson(uiSchema)}
-                onChange={this.onUISchemaEdited} />
-            </div>
-            <div className="col-sm-6">
-              <Editor title="formData" theme={editor} code={toJson(formData)}
-                onChange={this.onFormDataEdited} />
-            </div>
-          </div>
-        </div>
-        <div className="col-sm-5">
-          {!this.state.form ? null :
-            <Form
-              liveValidate={liveValidate}
-              schema={schema}
-              uiSchema={uiSchema}
-              formData={formData}
-              onChange={this.onFormDataChange}
-              fields={{geo: GeoPosition}}
-              validate={validate}
-              onError={log("errors")} />}
-        </div>
-      </div>
-    );
-  }
+render() {
+  return (
+    <Form schema={schema} uiSchema={uiSchema} fields={fields} onChange={this.onChange}  onSubmit={log(this.state)} validate={validate}  /> 
+  );
+}
 }
 
 render(<App />, document.getElementById("app"));
